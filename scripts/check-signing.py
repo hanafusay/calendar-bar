@@ -51,14 +51,14 @@ with tempfile.TemporaryDirectory(prefix="calendar-signing-check-", dir=Path.home
         initial, updated, forgery = applications
         assert initial[1].read_bytes() != updated[1].read_bytes()
         helper = initial[0] / "Contents/XPCServices/CalendarCredentials.xpc"
-        def cdhash(app):
-            result = subprocess.run(["codesign", "--display", "--verbose=4", str(app)], capture_output=True, text=True, check=True)
+        def cdhash(app, architecture=None):
+            result = subprocess.run(["codesign", "--display", "--verbose=4"] + (["--arch", architecture] if architecture else []) + [str(app)], capture_output=True, text=True, check=True)
             return re.search(r"^CDHash=([0-9a-f]+)$", result.stderr, re.MULTILINE).group(1)
         assert cdhash(initial[0]) != cdhash(updated[0])
         assert cdhash(helper) == cdhash(updated[0] / "Contents/XPCServices/CalendarCredentials.xpc")
         print(run([str(initial[1]), "create-legacy", str(keychain), str(helper)]).strip(), flush=True)
         # Only fictional data on a disposable runner simulates the initial human permission.
-        result = subprocess.run(["security", "set-generic-password-partition-list", "-S", f"cdhash:{cdhash(initial[0])},cdhash:{cdhash(helper)}",
+        result = subprocess.run(["security", "set-generic-password-partition-list", "-S", ",".join("cdhash:" + item for item in [cdhash(initial[0]), cdhash(helper, "arm64"), cdhash(helper, "x86_64")]),
                                  "-a", "google", "-s", "io.github.calendar-bar.credentials", "-k", password, str(keychain)], capture_output=True, timeout=45)
         if result.returncode:
             raise SystemExit("Cannot authorize fictional fixture helper")
@@ -66,9 +66,17 @@ with tempfile.TemporaryDirectory(prefix="calendar-signing-check-", dir=Path.home
         run(["security", "list-keychains", "-d", "user", "-s", str(keychain)])
         for binary, operation in [(initial[1], "read"), (initial[1], "read"), (updated[1], "read"),
                                   (forgery[1], "deny-read"), (forgery[1], "deny-save"), (forgery[1], "deny-remove"),
-                                  (updated[1], "read"), (updated[1], "save"), (initial[1], "read"), (updated[1], "read"), (updated[1], "remove")]:
+                                  (updated[1], "read"), (updated[1], "save"), (initial[1], "read-updated"), (updated[1], "read-updated"), (updated[1], "remove"), (updated[1], "missing")]:
             print(f"Checking {binary.parent.parent.parent.name}: {operation}", flush=True)
-            print(run([str(binary), operation]).strip(), flush=True)
+            try:
+                print(run([str(binary), operation]).strip(), flush=True)
+            except SystemExit:
+                for process in subprocess.check_output(["pgrep", "-x", "CalendarCredentials"], text=True).split():
+                    diagnostic = subprocess.run(["codesign", "--display", "--verbose=4", process], capture_output=True, text=True)
+                    print(diagnostic.stderr, flush=True)
+                diagnostic = subprocess.run(["log", "show", "--last", "2m", "--style", "compact", "--predicate", 'process == "securityd" AND eventMessage CONTAINS[c] "partition"'], capture_output=True, text=True)
+                print(diagnostic.stdout[-3000:], flush=True)
+                raise
         print("11 real XPC and Keychain checks passed with fictional data, differing hosts and the identical signed helper.", flush=True)
     finally:
         run(["security", "default-keychain", "-d", "user", "-s", original_default])

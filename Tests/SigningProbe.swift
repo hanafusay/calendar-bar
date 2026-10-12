@@ -34,9 +34,10 @@ var transportFailed = false
 let service = connection.synchronousRemoteObjectProxyWithErrorHandler { _ in transportFailed = true } as! CredentialServiceProtocol
 var status: Int32 = errSecNotAvailable
 var received: Data?
+let replacement = Data(#"{"clientID":"fictional.apps.googleusercontent.com","refreshToken":"fictional-reconnected"}"#.utf8)
 let denied = arguments[1].hasPrefix("deny-")
 switch arguments[1] {
-case "save", "deny-save": service.save(value) { status = $0 }
+case "save", "deny-save": service.save(replacement) { status = $0 }
 case "remove", "deny-remove": service.remove { status = $0 }
 default: service.load { received = $0; status = $1 }
 }
@@ -45,7 +46,9 @@ if denied {
   precondition(transportFailed && received == nil, "Forged caller reached credential service")
   print("Forged request denied before credential access")
 } else {
+  if arguments[1] == "missing" { precondition(status == errSecItemNotFound); exit(0) }
   precondition(!transportFailed && status == errSecSuccess, "Credential service failed: \(status)")
   if arguments[1] == "read" { precondition(received == value) }
+  if arguments[1] == "read-updated" { precondition(received == replacement) }
   print("Credential service request succeeded")
 }
