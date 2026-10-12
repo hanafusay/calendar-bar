@@ -1,46 +1,47 @@
 import AppKit
 import CalendarCore
+import CredentialProtocol
 import CryptoKit
 import Network
 import Security
 
 struct CredentialStore {
-  private static let query: [String: Any] = [
-    kSecClass as String: kSecClassGenericPassword,
-    kSecAttrService as String: "io.github.calendar-bar.credentials",
-    kSecAttrAccount as String: "google",
-  ]
+  private static func connection() -> NSXPCConnection {
+    let connection = NSXPCConnection(serviceName: CredentialServiceIdentity.name)
+    connection.remoteObjectInterface = NSXPCInterface(with: CredentialServiceProtocol.self)
+    connection.setCodeSigningRequirement(CredentialServiceIdentity.requirement(identifier: CredentialServiceIdentity.name))
+    connection.resume()
+    return connection
+  }
+
   static func load() throws -> GoogleCredentials? {
-    var query = Self.query
-    query[kSecReturnData as String] = true
-    var result: CFTypeRef?
-    let status = SecItemCopyMatching(query as CFDictionary, &result)
+    let connection = connection()
+    defer { connection.invalidate() }
+    var status: Int32 = errSecNotAvailable
+    var data: Data?
+    let service = connection.synchronousRemoteObjectProxyWithErrorHandler { _ in } as! CredentialServiceProtocol
+    service.load { value, result in data = value; status = result }
     if status == errSecItemNotFound { return nil }
-    guard status == errSecSuccess, let data = result as? Data else {
-      throw GoogleError.invalidCredentials
-    }
+    guard status == errSecSuccess, let data else { throw GoogleError.invalidCredentials }
     return try JSONDecoder().decode(GoogleCredentials.self, from: data)
   }
+
   static func save(_ credentials: GoogleCredentials) throws {
-    let data = try JSONEncoder().encode(credentials)
-    let updates = [kSecValueData as String: data]
-    var status = SecItemUpdate(query as CFDictionary, updates as CFDictionary)
-    if status == errSecItemNotFound {
-      var add = query
-      add[kSecValueData as String] = data
-      add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-      if KeychainAccess.isOfficialRelease() {
-        add[kSecAttrAccess as String] = try KeychainAccess.restrictedToCurrentApp()
-      }
-      status = SecItemAdd(add as CFDictionary, nil)
-    }
+    let connection = connection()
+    defer { connection.invalidate() }
+    var status: Int32 = errSecNotAvailable
+    let service = connection.synchronousRemoteObjectProxyWithErrorHandler { _ in } as! CredentialServiceProtocol
+    service.save(try JSONEncoder().encode(credentials)) { status = $0 }
     guard status == errSecSuccess else { throw GoogleError.invalidCredentials }
   }
+
   static func delete() throws {
-    let status = SecItemDelete(query as CFDictionary)
-    guard status == errSecSuccess || status == errSecItemNotFound else {
-      throw GoogleError.invalidCredentials
-    }
+    let connection = connection()
+    defer { connection.invalidate() }
+    var status: Int32 = errSecNotAvailable
+    let service = connection.synchronousRemoteObjectProxyWithErrorHandler { _ in } as! CredentialServiceProtocol
+    service.remove { status = $0 }
+    guard status == errSecSuccess else { throw GoogleError.invalidCredentials }
   }
 }
 

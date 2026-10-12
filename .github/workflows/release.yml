@@ -8,6 +8,10 @@ on:
         description: Version to verify before publication
         required: true
         default: '0.1.1'
+      bootstrap_credentials:
+        description: Build the credential service once for review and freezing
+        type: boolean
+        default: false
 permissions:
   contents: write
 jobs:
@@ -23,9 +27,20 @@ jobs:
           CALENDAR_SIGNING_P12: ${{ secrets.CALENDAR_SIGNING_P12 }}
           CALENDAR_SIGNING_PASSWORD: ${{ secrets.CALENDAR_SIGNING_PASSWORD }}
           RELEASE_VERSION: ${{ inputs.version || github.ref_name }}
+          BOOTSTRAP_CREDENTIALS: ${{ inputs.bootstrap_credentials || 'false' }}
         run: |
           VERSION="${RELEASE_VERSION#v}" python3 scripts/release-build.py
+      - name: Preserve credential service for review
+        if: ${{ always() && inputs.bootstrap_credentials }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: credential-service-v1
+          path: |
+            dist/CalendarCredentials-v1.tar.gz
+            dist/CalendarCredentials-v1.tar.gz.sha256
+          if-no-files-found: error
       - name: Publish release
+        if: ${{ !inputs.bootstrap_credentials }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_VERSION: ${{ inputs.version || github.ref_name }}

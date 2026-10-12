@@ -6,7 +6,9 @@ let package = Package(
   products: [.executable(name: "CalendarBar", targets: ["CalendarBar"])],
   targets: [
     .target(name: "CalendarCore"),
-    .executableTarget(name: "CalendarBar", dependencies: ["CalendarCore"]),
+    .target(name: "CredentialProtocol"),
+    .executableTarget(name: "CalendarBar", dependencies: ["CalendarCore", "CredentialProtocol"]),
+    .executableTarget(name: "CalendarCredentials", dependencies: ["CredentialProtocol"]),
     .executableTarget(
       name: "CalendarChecks", dependencies: ["CalendarCore"], path: "Tests/CalendarCoreTests"),
   ])

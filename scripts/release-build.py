@@ -47,8 +47,11 @@ with tempfile.TemporaryDirectory(prefix="calendar-release-") as directory:
             "openssl", "x509", "-in", "Resources/SigningCertificate.pem", "-noout", "-fingerprint", "-sha1"
         ], text=True).strip().split("=", 1)[1].replace(":", "")
         environment = dict(os.environ, SIGNING_IDENTITY=certificate, SIGNING_KEYCHAIN=str(keychain))
+        if os.environ.get("BOOTSTRAP_CREDENTIALS") == "true":
+            subprocess.run(["python3", "scripts/credential-service.py", "build"], env=environment, check=True)
         subprocess.run(["python3", "scripts/check-signing.py"], env=environment, check=True)
-        subprocess.run(["./create-dmg.sh"], env=environment, check=True)
+        if os.environ.get("BOOTSTRAP_CREDENTIALS") != "true":
+            subprocess.run(["./create-dmg.sh"], env=environment, check=True)
     finally:
         try:
             try:

@@ -1,69 +1,51 @@
+import CredentialProtocol
 import Foundation
 import Security
 import Darwin
 setbuf(stdout, nil)
 #if UPDATE
-print("Updated signing probe")
+print("Updated application")
 #else
-print("Initial signing probe")
+print("Initial application")
 #endif
 let arguments = CommandLine.arguments
-var keychain: SecKeychain?
-precondition(SecKeychainOpen(arguments[1], &keychain) == errSecSuccess)
-precondition(SecKeychainSetUserInteractionAllowed(false) == errSecSuccess)
-let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
-  kSecAttrService as String: "io.github.calendar-bar.signing-probe",
-  kSecAttrAccount as String: "fictional", kSecMatchSearchList as String: [keychain!]]
-func itemReference() -> SecKeychainItem {
-  var referenceQuery = query
-  referenceQuery[kSecReturnRef as String] = true
-  var reference: CFTypeRef?
-  precondition(SecItemCopyMatching(referenceQuery as CFDictionary, &reference) == errSecSuccess)
-  return reference as! SecKeychainItem
-}
-if arguments[2] == "create" {
-  precondition(KeychainAccess.isOfficialRelease())
+let value = Data(#"{"clientID":"fictional.apps.googleusercontent.com","refreshToken":"fictional-fixture-only"}"#.utf8)
+if arguments[1] == "create-legacy" {
+  var keychain: SecKeychain?
+  precondition(SecKeychainOpen(arguments[2], &keychain) == errSecSuccess)
   var current: SecTrustedApplication?
-  var legacy: SecTrustedApplication?
+  var helper: SecTrustedApplication?
   precondition(SecTrustedApplicationCreateFromPath(nil, &current) == errSecSuccess)
-  precondition(SecTrustedApplicationCreateFromPath(arguments[3], &legacy) == errSecSuccess)
+  precondition(SecTrustedApplicationCreateFromPath(arguments[3], &helper) == errSecSuccess)
   var access: SecAccess?
-  precondition(SecAccessCreate("Fictional migration fixture" as CFString, [current!, legacy!] as CFArray, &access) == errSecSuccess)
-  var migrationGrant: SecACL?
-  precondition(SecACLCreateWithSimpleContents(access!, [current!] as CFArray,
-    "Authorized fictional migration" as CFString, SecKeychainPromptSelector(), &migrationGrant) == errSecSuccess)
-  precondition(SecACLUpdateAuthorizations(migrationGrant!,
-    [kSecACLAuthorizationChangeACL] as CFArray) == errSecSuccess)
-  var add = query
-  add.removeValue(forKey: kSecMatchSearchList as String)
-  add[kSecUseKeychain as String] = keychain!
-  add[kSecValueData as String] = Data("fictional-fixture-only".utf8)
-  add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-  add[kSecAttrAccess as String] = access!
-  precondition(SecItemAdd(add as CFDictionary, nil) == errSecSuccess)
-  print("Fictional value stored")
-  print("Created fictional legacy item and authorized its migration")
-} else if arguments[2] == "migrate" {
-  precondition(KeychainAccess.isOfficialRelease())
-  let migrated = try KeychainAccess.migrate(itemReference())
-  precondition(migrated)
-  print("Migrated access metadata while preserving fictional credential bytes")
-} else if arguments[2] == "replace" {
-  let changed = [kSecValueData as String: Data("fictional-reconnected".utf8)]
-  precondition(SecItemUpdate(query as CFDictionary, changed as CFDictionary) == errSecSuccess)
-  print("Replaced fictional value as during reconnection")
+  precondition(SecAccessCreate("Fictional credential fixture" as CFString, [current!, helper!] as CFArray, &access) == errSecSuccess)
+  let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
+    kSecAttrService as String: "io.github.calendar-bar.credentials", kSecAttrAccount as String: "google",
+    kSecUseKeychain as String: keychain!, kSecAttrAccess as String: access!, kSecValueData as String: value]
+  precondition(SecItemAdd(query as CFDictionary, nil) == errSecSuccess)
+  print("Created fictional legacy credential with its helper authorized")
+  exit(0)
+}
+let connection = NSXPCConnection(serviceName: CredentialServiceIdentity.name)
+connection.remoteObjectInterface = NSXPCInterface(with: CredentialServiceProtocol.self)
+connection.setCodeSigningRequirement(CredentialServiceIdentity.requirement(identifier: CredentialServiceIdentity.name))
+connection.resume()
+var transportFailed = false
+let service = connection.synchronousRemoteObjectProxyWithErrorHandler { _ in transportFailed = true } as! CredentialServiceProtocol
+var status: Int32 = errSecNotAvailable
+var received: Data?
+let denied = arguments[1].hasPrefix("deny-")
+switch arguments[1] {
+case "save", "deny-save": service.save(value) { status = $0 }
+case "remove", "deny-remove": service.remove { status = $0 }
+default: service.load { received = $0; status = $1 }
+}
+connection.invalidate()
+if denied {
+  precondition(transportFailed && received == nil, "Forged caller reached credential service")
+  print("Forged request denied before credential access")
 } else {
-  var lookup = query
-  lookup[kSecReturnData as String] = true
-  var value: CFTypeRef?
-  let status = SecItemCopyMatching(lookup as CFDictionary, &value)
-  if arguments[2] == "denied" {
-    precondition(status == errSecAuthFailed || status == errSecInteractionNotAllowed, "Unexpected access status: \(status)")
-    print("Unauthorized access denied")
-  } else {
-    precondition(status == errSecSuccess)
-    let expected = arguments[2] == "updated-value" ? "fictional-reconnected" : "fictional-fixture-only"
-    precondition(value as? Data == Data(expected.utf8))
-    print("Fictional item read without authorization UI")
-  }
+  precondition(!transportFailed && status == errSecSuccess, "Credential service failed: \(status)")
+  if arguments[1] == "read" { precondition(received == value) }
+  print("Credential service request succeeded")
 }

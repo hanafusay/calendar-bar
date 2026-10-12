@@ -17,6 +17,7 @@ fi
 bin_dir="$(swift build -c release --arch arm64 --arch x86_64 --show-bin-path)"
 app="$PWD/dist/Calendar Bar.app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
+python3 scripts/credential-service.py "$app/Contents/XPCServices"
 cp "$bin_dir/CalendarBar" "$app/Contents/MacOS/CalendarBar"
 cp Resources/Info.plist "$app/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $version" "$app/Contents/Info.plist"
