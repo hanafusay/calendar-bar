@@ -23,7 +23,7 @@ Remove dependencies on SwiftBar, Python, Homebrew and an external Google CLI.
 The account and credentials stay on the user's Mac. No personal events or credentials ship in the repository.
 Verify the application locally before creating the public GitHub repository.
 Use ad-hoc signing for the first public build. A paid Apple account is not a release prerequisite.
-From 0.1.1, official releases use one dedicated self-signed certificate and a designated requirement matching both the certificate and bundle identifier. Keep the key private. Existing credentials remain unchanged; the user authorizes the new signed app once with Always Allow to preserve access across subsequent restarts and releases signed by the same certificate.
+From 0.1.3, official releases use one dedicated self-signed certificate and a designated requirement matching both the certificate and bundle identifier. Keep the key private. Preserve credential bytes and migrate only access metadata: remove legacy per-binary partitions and legacy application trust, retain only the dedicated certificate plus bundle identifier requirement. Verify the running code against the pinned official certificate before changing metadata. A native authorization may be required once during migration.
 
 ## Google connection
 

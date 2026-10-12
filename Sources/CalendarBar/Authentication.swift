@@ -11,6 +11,15 @@ struct CredentialStore {
     kSecAttrAccount as String: "google",
   ]
   static func load() throws -> GoogleCredentials? {
+    var referenceQuery = Self.query
+    referenceQuery[kSecReturnRef as String] = true
+    var reference: CFTypeRef?
+    let referenceStatus = SecItemCopyMatching(referenceQuery as CFDictionary, &reference)
+    if referenceStatus == errSecItemNotFound { return nil }
+    guard referenceStatus == errSecSuccess, let reference else {
+      throw GoogleError.invalidCredentials
+    }
+    _ = try KeychainAccess.migrate(reference as! SecKeychainItem)
     var query = Self.query
     query[kSecReturnData as String] = true
     var result: CFTypeRef?
@@ -29,6 +38,9 @@ struct CredentialStore {
       var add = query
       add[kSecValueData as String] = data
       add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+      if KeychainAccess.isOfficialRelease() {
+        add[kSecAttrAccess as String] = try KeychainAccess.restrictedToCurrentApp()
+      }
       status = SecItemAdd(add as CFDictionary, nil)
     }
     guard status == errSecSuccess else { throw GoogleError.invalidCredentials }

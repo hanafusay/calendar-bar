@@ -30,7 +30,9 @@ with tempfile.TemporaryDirectory(prefix="calendar-signing-check-") as directory:
             app = root / f"{name}.app"
             binary = app / "Contents/MacOS/Probe"
             binary.parent.mkdir(parents=True)
-            compiler = ["swiftc", "Tests/SigningProbe.swift", "-o", str(binary)]
+            main = root / "main.swift"
+            main.write_bytes(Path("Tests/SigningProbe.swift").read_bytes())
+            compiler = ["swiftc", str(main), "Sources/CalendarBar/KeychainAccess.swift", "-o", str(binary)]
             if updated:
                 compiler.extend(["-D", "UPDATE"])
             run(compiler)
@@ -45,10 +47,12 @@ with tempfile.TemporaryDirectory(prefix="calendar-signing-check-") as directory:
         assert initial[1].read_bytes() != updated[1].read_bytes()
         for app, _ in [initial, updated]:
             run(["codesign", "--verify", "--strict", "--test-requirement", "=" + requirement, str(app)])
-        print(run([str(initial[1]), str(data_keychain), "create"]).strip())
+        print(run([str(initial[1]), str(data_keychain), "create", str(unrelated[0])]).strip())
+        print("Legacy update denied:", run([str(updated[1]), str(data_keychain), "denied"]).strip())
+        print(run([str(initial[1]), str(data_keychain), "migrate"]).strip())
         print("Restart:", run([str(initial[1]), str(data_keychain), "read"]).strip())
         print("Update:", run([str(updated[1]), str(data_keychain), "read"]).strip())
         print("Forgery:", run([str(unrelated[1]), str(data_keychain), "denied"]).strip())
-        print("3 real Keychain signing checks passed; authorization UI disabled; fictional data only.")
+        print("5 real Keychain migration checks passed; authorization UI disabled; fictional data only.")
     finally:
         subprocess.run(["security", "delete-keychain", str(data_keychain)], check=True, capture_output=True)
