@@ -3,12 +3,16 @@ import base64
 import os
 from pathlib import Path
 import secrets
+import shlex
 import subprocess
 import tempfile
 
 
 def run(arguments, **kwargs):
-    result = subprocess.run(arguments, capture_output=True, **kwargs)
+    try:
+        result = subprocess.run(arguments, capture_output=True, timeout=45, **kwargs)
+    except subprocess.TimeoutExpired:
+        raise SystemExit(f"Release signing timed out at {Path(arguments[0]).name}; secret output suppressed.")
     if result.returncode:
         raise SystemExit(f"Release signing failed at {Path(arguments[0]).name}; secret output suppressed.")
     return result.stdout
@@ -25,12 +29,17 @@ with tempfile.TemporaryDirectory(prefix="calendar-release-") as directory:
     keychain = root / "signing.keychain-db"
     keychain_password = secrets.token_urlsafe(40)
     run(["security", "create-keychain", "-p", keychain_password, str(keychain)])
+    original_keychains = shlex.split(run(["security", "list-keychains", "-d", "user"]).decode())
     try:
         run(["security", "set-keychain-settings", "-lut", "3600", str(keychain)])
         run(["security", "unlock-keychain", "-p", keychain_password, str(keychain)])
         run(["security", "import", str(p12), "-k", str(keychain), "-P", archive_password, "-T", "/usr/bin/codesign"])
         run(["security", "set-key-partition-list", "-S", "apple-tool:,codesign:", "-s", "-k", keychain_password, str(keychain)])
-        run(["sudo", "security", "add-trusted-cert", "-d", "-r", "trustRoot", "-p", "codeSign", "-a", "/usr/bin/codesign", "-k", str(keychain), "Resources/SigningCertificate.pem"])
+        run(["security", "list-keychains", "-d", "user", "-s", str(keychain), *original_keychains])
+        print("Signing keychain imported and configured.", flush=True)
+        run(["sudo", "security", "add-trusted-cert", "-d", "-r", "trustRoot", "-p", "codeSign", "-k", str(keychain), "Resources/SigningCertificate.pem"])
+        print("Code signing certificate registered on disposable runner.", flush=True)
+        print(run(["security", "find-identity", "-v", "-p", "codesigning", str(keychain)]).decode(), flush=True)
         certificate = subprocess.check_output([
             "openssl", "x509", "-in", "Resources/SigningCertificate.pem", "-noout", "-fingerprint", "-sha1"
         ], text=True).strip().split("=", 1)[1].replace(":", "")
@@ -41,4 +50,7 @@ with tempfile.TemporaryDirectory(prefix="calendar-release-") as directory:
         try:
             run(["sudo", "security", "remove-trusted-cert", "-d", "Resources/SigningCertificate.pem"])
         finally:
-            run(["security", "delete-keychain", str(keychain)])
+            try:
+                run(["security", "list-keychains", "-d", "user", "-s", *original_keychains])
+            finally:
+                run(["security", "delete-keychain", str(keychain)])
