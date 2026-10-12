@@ -1,5 +1,7 @@
 import Foundation
 import Security
+import Darwin
+setbuf(stdout, nil)
 #if UPDATE
 print("Updated signing probe")
 #else
@@ -34,6 +36,7 @@ if arguments[2] == "create" {
   add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
   add[kSecAttrAccess as String] = access!
   precondition(SecItemAdd(add as CFDictionary, nil) == errSecSuccess)
+  print("Fictional value stored")
   var code: SecCode?
   var staticCode: SecStaticCode?
   var information: CFDictionary?
@@ -44,8 +47,10 @@ if arguments[2] == "create" {
   let data = try PropertyListSerialization.data(fromPropertyList: ["Partitions": ["cdhash:" + hash]], format: .xml, options: 0)
   let descriptor = data.map { String(format: "%02x", $0) }.joined()
   var partition: SecACL?
+  print("Constructing per-binary partition")
   precondition(SecACLCreateWithSimpleContents(access!, nil, descriptor as CFString, SecKeychainPromptSelector(), &partition) == errSecSuccess)
   precondition(SecACLUpdateAuthorizations(partition!, [kSecACLAuthorizationPartitionID] as CFArray) == errSecSuccess)
+  print("Applying fictional legacy access metadata")
   precondition(SecKeychainItemSetAccess(itemReference(), access!) == errSecSuccess)
   print("Created fictional legacy item with per-binary partition and legacy app trust")
 } else if arguments[2] == "migrate" {

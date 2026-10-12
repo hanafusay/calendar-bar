@@ -8,7 +8,11 @@ import tempfile
 
 
 def run(arguments, **kwargs):
-    result = subprocess.run(arguments, capture_output=True, text=True, **kwargs)
+    try:
+        result = subprocess.run(arguments, capture_output=True, text=True, timeout=60, **kwargs)
+    except subprocess.TimeoutExpired as error:
+        output = (error.stdout or b"").decode(errors="replace") if isinstance(error.stdout, bytes) else (error.stdout or "")
+        raise SystemExit(f"Fictional signing check timed out at {Path(arguments[0]).name}: {output[-2000:]}")
     if result.returncode:
         raise SystemExit(f"Signing check failed at {Path(arguments[0]).name}: {result.stderr[-2000:]}")
     return result.stdout
@@ -27,6 +31,7 @@ with tempfile.TemporaryDirectory(prefix="calendar-signing-check-") as directory:
     try:
         applications = []
         for name, updated, signing_identity in [("Initial", False, identity), ("Updated", True, identity), ("Unrelated", False, "-")]:
+            print(f"Compiling and signing fictional {name} app.", flush=True)
             app = root / f"{name}.app"
             binary = app / "Contents/MacOS/Probe"
             binary.parent.mkdir(parents=True)
@@ -47,7 +52,8 @@ with tempfile.TemporaryDirectory(prefix="calendar-signing-check-") as directory:
         assert initial[1].read_bytes() != updated[1].read_bytes()
         for app, _ in [initial, updated]:
             run(["codesign", "--verify", "--strict", "--test-requirement", "=" + requirement, str(app)])
-        print(run([str(initial[1]), str(data_keychain), "create", str(unrelated[0])]).strip())
+        print("Creating fictional legacy access metadata.", flush=True)
+        print(run([str(initial[1]), str(data_keychain), "create", str(unrelated[0])]).strip(), flush=True)
         print("Legacy update denied:", run([str(updated[1]), str(data_keychain), "denied"]).strip())
         print(run([str(initial[1]), str(data_keychain), "migrate"]).strip())
         print("Restart:", run([str(initial[1]), str(data_keychain), "read"]).strip())
