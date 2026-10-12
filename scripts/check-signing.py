@@ -22,7 +22,8 @@ def run(arguments, **kwargs):
 identity = os.environ["SIGNING_IDENTITY"]
 signing_keychain = os.environ["SIGNING_KEYCHAIN"]
 requirement = f'identifier "io.github.calendar-bar" and certificate leaf = H"{identity}"'
-with tempfile.TemporaryDirectory(prefix="calendar-signing-check-") as directory:
+# macOS enables per-binary partitions only for keychains beneath Library/Keychains.
+with tempfile.TemporaryDirectory(prefix="calendar-signing-check-", dir=Path.home() / "Library/Keychains") as directory:
     root = Path(directory)
     data_keychain = root / "fictional.keychain-db"
     password = secrets.token_urlsafe(32)
