@@ -6,11 +6,12 @@ import ServiceManagement
 @MainActor
 final class AppController: NSObject, NSApplicationDelegate {
   enum Account {
+    case loading
     case disconnected
     case connected(GoogleCredentials)
     case demo
   }
-  private var account: Account = CommandLine.arguments.contains("--demo") ? .demo : .disconnected
+  private var account: Account = CommandLine.arguments.contains("--demo") ? .demo : .loading
   private var events: [CalendarEvent] = []
   private var client: GoogleCredentials?
   private var generation = 0
@@ -18,6 +19,7 @@ final class AppController: NSObject, NSApplicationDelegate {
   private var login: GoogleLogin?
   private var message: String?
   private var settingsStatus: NSTextField?
+  private var authButtons: [NSButton] = []
   private var updated: Date?
   private var statusItem: NSStatusItem!
   private var timer: Timer?
@@ -28,18 +30,31 @@ final class AppController: NSObject, NSApplicationDelegate {
     statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     if case .demo = account {
       events = demoEvents()
+      refresh()
     } else {
-      do {
-        client = try CredentialStore.load()
-        if let client, client.refreshToken != nil { account = .connected(client) }
-      } catch { message = "保存した認証情報を読み込めませんでした。" }
+      render()
+      let captured = generation
+      Task {
+        do {
+          let stored = try await Task.detached { try CredentialStore.load() }.value
+          guard generation == captured else { return }
+          client = stored
+          if let stored, stored.refreshToken != nil {
+            account = .connected(stored)
+          } else {
+            account = .disconnected
+          }
+        } catch {
+          guard generation == captured else { return }
+          account = .disconnected
+          message = "保存した認証情報を読み込めませんでした。Macのキーチェーンの許可を確認してください。"
+        }
+        refresh()
+        updateSettings()
+        if client == nil, settingsWindow == nil { showSettings() }
+      }
     }
-    refresh()
-    if CommandLine.arguments.contains("--show-settings") {
-      showSettings()
-    } else if case .disconnected = account, client == nil {
-      showSettings()
-    }
+    if CommandLine.arguments.contains("--show-settings") { showSettings() }
     timer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
       Task { @MainActor in self?.refresh() }
     }
@@ -79,19 +94,21 @@ final class AppController: NSObject, NSApplicationDelegate {
 
   private func render() {
     let agenda = Agenda(events: events, now: Date())
-    if case .disconnected = account {
+    switch account {
+    case .loading, .disconnected:
       statusItem.button?.title = "📅 Calendar Bar"
-    } else {
+    case .connected, .demo:
       statusItem.button?.title = message == nil ? agenda.title : "📅 取得失敗"
     }
     statusItem.button?.setAccessibilityLabel(statusItem.button?.title ?? "Calendar Bar")
     let menu = NSMenu()
-    if case .disconnected = account {
+    switch account {
+    case .loading, .disconnected:
       let item = NSMenuItem(
         title: "Google カレンダーへの接続を設定", action: #selector(showSettings), keyEquivalent: "")
       item.target = self
       menu.addItem(item)
-    } else {
+    case .connected, .demo:
       for entry in agenda.entries {
         let row = NSMenuItem(title: entry.title, action: nil, keyEquivalent: "")
         if entry.state == .completed {
@@ -166,7 +183,9 @@ final class AppController: NSObject, NSApplicationDelegate {
     let importButton = NSButton(title: "認証ファイルを選ぶ…", target: self, action: #selector(importClient))
     let connectButton = NSButton(title: "Google に接続", target: self, action: #selector(connect))
     let disconnectButton = NSButton(title: "接続解除", target: self, action: #selector(disconnect))
-    let buttons = NSStackView(views: [importButton, connectButton, disconnectButton])
+    authButtons = [importButton, connectButton, disconnectButton]
+    updateSettings()
+    let buttons = NSStackView(views: authButtons)
     buttons.spacing = 8
     status.textColor = .secondaryLabelColor
     let login = NSButton(
@@ -204,10 +223,15 @@ final class AppController: NSObject, NSApplicationDelegate {
     }
   }
   private func updateSettings() {
+    let loading: Bool
+    if case .loading = account { loading = true } else { loading = false }
+    authButtons.forEach { $0.isEnabled = !loading }
     if case .demo = account {
       settingsStatus?.stringValue = "デモ表示中。予定は架空のサンプルです。"
     } else if let message {
       settingsStatus?.stringValue = message
+    } else if case .loading = account {
+      settingsStatus?.stringValue = "保存した接続設定を読み込んでいます。Macにキーチェーンの確認が表示された場合は許可してください。"
     } else if login != nil {
       settingsStatus?.stringValue = "ブラウザでGoogleへの接続を完了してください。接続解除でキャンセルできます。"
     } else if case .connected = account {
