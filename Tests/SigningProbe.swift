@@ -29,14 +29,6 @@ if arguments[2] == "create" {
   precondition(SecTrustedApplicationCreateFromPath(arguments[3], &legacy) == errSecSuccess)
   var access: SecAccess?
   precondition(SecAccessCreate("Fictional migration fixture" as CFString, [current!, legacy!] as CFArray, &access) == errSecSuccess)
-  var add = query
-  add.removeValue(forKey: kSecMatchSearchList as String)
-  add[kSecUseKeychain as String] = keychain!
-  add[kSecValueData as String] = Data("fictional-fixture-only".utf8)
-  add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-  add[kSecAttrAccess as String] = access!
-  precondition(SecItemAdd(add as CFDictionary, nil) == errSecSuccess)
-  print("Fictional value stored")
   var code: SecCode?
   var staticCode: SecStaticCode?
   var information: CFDictionary?
@@ -50,8 +42,19 @@ if arguments[2] == "create" {
   print("Constructing per-binary partition")
   precondition(SecACLCreateWithSimpleContents(access!, nil, descriptor as CFString, SecKeychainPromptSelector(), &partition) == errSecSuccess)
   precondition(SecACLUpdateAuthorizations(partition!, [kSecACLAuthorizationPartitionID] as CFArray) == errSecSuccess)
-  print("Applying fictional legacy access metadata")
-  precondition(SecKeychainItemSetAccess(itemReference(), access!) == errSecSuccess)
+  var migrationGrant: SecACL?
+  precondition(SecACLCreateWithSimpleContents(access!, [current!] as CFArray,
+    "Authorized fictional migration" as CFString, SecKeychainPromptSelector(), &migrationGrant) == errSecSuccess)
+  precondition(SecACLUpdateAuthorizations(migrationGrant!,
+    [kSecACLAuthorizationChangeACL, kSecACLAuthorizationChangeOwner] as CFArray) == errSecSuccess)
+  var add = query
+  add.removeValue(forKey: kSecMatchSearchList as String)
+  add[kSecUseKeychain as String] = keychain!
+  add[kSecValueData as String] = Data("fictional-fixture-only".utf8)
+  add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+  add[kSecAttrAccess as String] = access!
+  precondition(SecItemAdd(add as CFDictionary, nil) == errSecSuccess)
+  print("Fictional value stored")
   print("Created fictional legacy item with per-binary partition and legacy app trust")
 } else if arguments[2] == "migrate" {
   precondition(KeychainAccess.isOfficialRelease())
