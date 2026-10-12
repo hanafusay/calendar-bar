@@ -1,5 +1,6 @@
 import AppKit
 import CalendarCore
+import CryptoKit
 import ServiceManagement
 
 @MainActor
@@ -340,6 +341,17 @@ if arguments.contains("--check-live") {
       let events = try await GoogleCalendarAPI().events(credentials: credentials)
       let agenda = Agenda(events: events, now: Date())
       print("Google Calendar API OK. Timed events: \(agenda.entries.count)")
+      let canonical = agenda.entries.map { entry in
+        [
+          "id": entry.event.id, "summary": entry.event.summary ?? "(無題)",
+          "start": entry.event.start?.dateTime ?? "", "end": entry.event.end?.dateTime ?? "",
+          "meet": entry.event.hangoutLink ?? "", "calendar": entry.event.htmlLink ?? "",
+        ]
+      }
+      let data = try JSONSerialization.data(
+        withJSONObject: canonical, options: [.sortedKeys, .withoutEscapingSlashes])
+      let digest = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+      print("Agenda SHA256: \(digest)")
       exit(0)
     } catch {
       fputs("Google Calendar API check failed.\n", stderr)
