@@ -1,0 +1,25 @@
+Google カレンダーの今日の予定をメニューバーに表示する、独立した macOS アプリです。
+
+- 現在の予定、次の予定、終了済みの予定を表示します。
+- Meet と Google カレンダーを開けます。
+- Google Calendar へ直接接続し、1分ごとに予定を更新します。
+- SwiftBar、Homebrew、Python、Mac のカレンダーアプリは不要です。
+
+## インストール
+
+1. CalendarBar-*.dmg をダウンロードします。
+2. DMG を開き、Calendar Bar.app を Applications へドラッグします。
+3. Calendar Bar を開きます。
+4. 自分のデスクトップ用 Google OAuth 認証ファイルを読み込み、Google に接続します。
+
+Google Cloud の認証クライアントは利用者が用意します。
+認証情報は利用者の Mac に保存し、配布ファイルには含めません。
+
+## 初回起動の注意
+
+この版はアドホック署名で配布します。
+macOS が初回起動を止めた場合は、システム設定 > プライバシーとセキュリティ > このまま開く、で許可します。
+Developer ID による署名と Apple の公証は行っていません。
+
+Apple Silicon と Intel Mac 向けの実行ファイルを含みます。
+チェックサムは .sha256 ファイルを参照してください。

@@ -1,0 +1,18 @@
+Calendar Bar — インストール手順
+
+1. Calendar Bar.app を Applications フォルダへドラッグします。
+2. Applications に保存した Calendar Bar を開きます。
+3. macOS が初回起動を止めた場合は、システム設定 > プライバシーとセキュリティを開き、Calendar Bar に対する「このまま開く」を選択します。
+   プロジェクトの GitHub Releases から取得したアプリであることを先に確認してください。
+4. アプリの設定で、自分の Google Cloud のデスクトップ用 OAuth 認証ファイルを選択します。
+5. Google に接続し、カレンダーの読み取りを許可します。
+
+Google Cloud の準備は README の「Google を接続する」を参照してください。
+アプリは Google Calendar へ直接接続します。
+SwiftBar、Homebrew、Python、外部CLI、Macのカレンダーアプリは不要です。
+認証情報は Mac のキーチェーンに保存します。
+アプリの配布ファイルには、利用者の認証情報を含めません。
+
+最初の公開版はアドホック署名です。
+アドホック署名は、配布者の身元を Apple が確認する署名ではありません。
+Developer ID による署名と Apple の公証は、配布者が任意で追加する工程です。

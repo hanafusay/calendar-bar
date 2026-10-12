@@ -24,8 +24,13 @@ The account and credentials stay on the user's Mac. No personal events or creden
 Verify the application locally before creating the public GitHub repository.
 Use ad-hoc signing for the first public build. A paid Apple account is not a release prerequisite.
 
-## Open decisions
+## Google connection
 
-A shared Google OAuth client requires publisher-side Google Cloud configuration.
-The first-run experience depends on whether that configuration is available.
-The application name Calendar Bar is an implementation default.
+Each user imports their own Google desktop OAuth client JSON and grants calendar read access.
+The application stores client metadata and the refresh token in the local macOS Keychain.
+No publisher client, credentials, or server is bundled or required.
+The Calendar API is called directly from the Mac.
+
+## Implementation default
+
+The application name is Calendar Bar.

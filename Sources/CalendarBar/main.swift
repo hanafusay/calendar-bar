@@ -35,6 +35,11 @@ final class AppController: NSObject, NSApplicationDelegate {
       } catch { message = "保存した認証情報を読み込めませんでした。" }
     }
     refresh()
+    if CommandLine.arguments.contains("--show-settings") {
+      showSettings()
+    } else if case .disconnected = account, client == nil {
+      showSettings()
+    }
     timer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
       Task { @MainActor in self?.refresh() }
     }
@@ -206,7 +211,14 @@ final class AppController: NSObject, NSApplicationDelegate {
     } else if login != nil {
       settingsStatus?.stringValue = "ブラウザでGoogleへの接続を完了してください。接続解除でキャンセルできます。"
     } else if case .connected = account {
-      settingsStatus?.stringValue = "Google カレンダーに接続しています。"
+      if let updated {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm:ss"
+        let count = Agenda(events: events, now: Date()).entries.count
+        settingsStatus?.stringValue = "今日の予定\(count)件を取得しました。更新 \(formatter.string(from: updated))"
+      } else {
+        settingsStatus?.stringValue = "Google カレンダーから予定を取得しています。"
+      }
     } else {
       settingsStatus?.stringValue =
         client == nil
@@ -354,7 +366,9 @@ if arguments.contains("--check-live") {
       print("Agenda SHA256: \(digest)")
       exit(0)
     } catch {
-      fputs("Google Calendar API check failed.\n", stderr)
+      let detail = (error as? GoogleError)?.localizedDescription
+          ?? "System error: \((error as NSError).domain) \((error as NSError).code)"
+        fputs("Google Calendar API check failed. \(detail)\n", stderr)
       exit(1)
     }
   }

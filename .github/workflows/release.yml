@@ -1,0 +1,21 @@
+name: Release DMG
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Test
+        run: swift run CalendarChecks
+      - name: Build universal DMG
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}" ./create-dmg.sh
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/*.dmg dist/*.sha256 --title "Calendar Bar $GITHUB_REF_NAME" --notes-file docs/RELEASE.md
