@@ -6,3 +6,7 @@ dist/
 .env*
 *credentials*.json
 client_secret*.json
+__pycache__/
+*.p12
+*.keychain-db
+*.key

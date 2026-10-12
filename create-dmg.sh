@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 cd "$(dirname "$0")"
-version="${VERSION:-0.1.0}"
+version="${VERSION:-0.1.1}"
 [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "VERSION must be X.Y.Z" >&2; exit 1; }
 identity="${SIGNING_IDENTITY:--}"
 [[ "${1:-}" == "" || "${1:-}" == "--skip-build" ]] || { echo "Unknown option" >&2; exit 1; }
@@ -27,7 +27,19 @@ fi
 if [[ "$identity" == "-" ]]; then
     codesign --force --sign - "$app"
 else
-    codesign --force --options runtime --timestamp --sign "$identity" "$app"
+    certificate_id="$(openssl x509 -in Resources/SigningCertificate.pem -noout -fingerprint -sha1 | cut -d= -f2 | tr -d ':')"
+    signing_args=()
+    if [[ -n "${SIGNING_KEYCHAIN:-}" ]]; then
+        signing_args+=(--keychain "$SIGNING_KEYCHAIN")
+    fi
+    if [[ "$identity" == "$certificate_id" ]]; then
+        requirement="designated => identifier \"io.github.calendar-bar\" and certificate leaf = H\"$certificate_id\""
+        codesign --force --options runtime --timestamp=none --sign "$identity" \
+            --requirements "=$requirement" "${signing_args[@]}" "$app"
+        codesign --verify --strict --test-requirement "=identifier \"io.github.calendar-bar\" and certificate leaf = H\"$certificate_id\"" "$app"
+    else
+        codesign --force --options runtime --timestamp --sign "$identity" "${signing_args[@]}" "$app"
+    fi
 fi
 codesign --verify --deep --strict "$app"
 stage="$(mktemp -d)"
