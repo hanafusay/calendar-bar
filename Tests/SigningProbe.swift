@@ -29,19 +29,6 @@ if arguments[2] == "create" {
   precondition(SecTrustedApplicationCreateFromPath(arguments[3], &legacy) == errSecSuccess)
   var access: SecAccess?
   precondition(SecAccessCreate("Fictional migration fixture" as CFString, [current!, legacy!] as CFArray, &access) == errSecSuccess)
-  var code: SecCode?
-  var staticCode: SecStaticCode?
-  var information: CFDictionary?
-  precondition(SecCodeCopySelf(SecCSFlags(rawValue: 0), &code) == errSecSuccess)
-  precondition(SecCodeCopyStaticCode(code!, SecCSFlags(rawValue: 0), &staticCode) == errSecSuccess)
-  precondition(SecCodeCopySigningInformation(staticCode!, SecCSFlags(rawValue: 0), &information) == errSecSuccess)
-  let hash = ((information as! [String: Any])[kSecCodeInfoUnique as String] as! Data).map { String(format: "%02x", $0) }.joined()
-  let data = try PropertyListSerialization.data(fromPropertyList: ["Partitions": ["cdhash:" + hash]], format: .xml, options: 0)
-  let descriptor = data.map { String(format: "%02x", $0) }.joined()
-  var partition: SecACL?
-  print("Constructing per-binary partition")
-  precondition(SecACLCreateWithSimpleContents(access!, nil, descriptor as CFString, SecKeychainPromptSelector(), &partition) == errSecSuccess)
-  precondition(SecACLUpdateAuthorizations(partition!, [kSecACLAuthorizationPartitionID] as CFArray) == errSecSuccess)
   var migrationGrant: SecACL?
   precondition(SecACLCreateWithSimpleContents(access!, [current!] as CFArray,
     "Authorized fictional migration" as CFString, SecKeychainPromptSelector(), &migrationGrant) == errSecSuccess)
@@ -55,7 +42,7 @@ if arguments[2] == "create" {
   add[kSecAttrAccess as String] = access!
   precondition(SecItemAdd(add as CFDictionary, nil) == errSecSuccess)
   print("Fictional value stored")
-  print("Created fictional legacy item with per-binary partition and legacy app trust")
+  print("Created fictional legacy item and authorized its migration")
 } else if arguments[2] == "migrate" {
   precondition(KeychainAccess.isOfficialRelease())
   let migrated = try KeychainAccess.migrate(itemReference())

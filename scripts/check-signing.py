@@ -2,6 +2,7 @@
 import os
 from pathlib import Path
 import plistlib
+import re
 import secrets
 import subprocess
 import tempfile
@@ -54,6 +55,16 @@ with tempfile.TemporaryDirectory(prefix="calendar-signing-check-") as directory:
             run(["codesign", "--verify", "--strict", "--test-requirement", "=" + requirement, str(app)])
         print("Creating fictional legacy access metadata.", flush=True)
         print(run([str(initial[1]), str(data_keychain), "create", str(unrelated[0])]).strip(), flush=True)
+        signature = subprocess.run(["codesign", "--display", "--verbose=4", str(initial[0])], capture_output=True, text=True, check=True)
+        match = re.search(r"^CDHash=([0-9a-f]+)$", signature.stderr, re.MULTILINE)
+        assert match
+        # Only the isolated fictional keychain receives this test password and partition override.
+        partition = subprocess.run([
+            "security", "set-generic-password-partition-list", "-S", "cdhash:" + match.group(1),
+            "-a", "fictional", "-s", "io.github.calendar-bar.signing-probe", "-k", password, str(data_keychain)
+        ], capture_output=True, timeout=45)
+        if partition.returncode:
+            raise SystemExit("Cannot construct fictional per-binary partition")
         print("Legacy update denied:", run([str(updated[1]), str(data_keychain), "denied"]).strip())
         print(run([str(initial[1]), str(data_keychain), "migrate"]).strip())
         print("Restart:", run([str(initial[1]), str(data_keychain), "read"]).strip())
