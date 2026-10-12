@@ -64,6 +64,14 @@ with tempfile.TemporaryDirectory(prefix="calendar-signing-check-", dir=Path.home
             raise SystemExit("Cannot authorize fictional fixture helper")
         run(["security", "default-keychain", "-d", "user", "-s", str(keychain)])
         run(["security", "list-keychains", "-d", "user", "-s", str(keychain)])
+        print("Authorized helper partitions:", cdhash(helper, "arm64"), cdhash(helper, "x86_64"), flush=True)
+        try:
+            print(run([str(initial[1]), "read"]).strip(), flush=True)
+        except SystemExit as error:
+            print("Legacy fixture result:", error, flush=True)
+        run(["security", "delete-generic-password", "-a", "google", "-s", "io.github.calendar-bar.credentials", str(keychain)])
+        print("Creating fictional credentials through the actual service", flush=True)
+        print(run([str(initial[1]), "save-initial"]).strip(), flush=True)
         for binary, operation in [(initial[1], "read"), (initial[1], "read"), (updated[1], "read"),
                                   (forgery[1], "deny-read"), (forgery[1], "deny-save"), (forgery[1], "deny-remove"),
                                   (updated[1], "read"), (updated[1], "save"), (initial[1], "read-updated"), (updated[1], "read-updated"), (updated[1], "remove"), (updated[1], "missing")]:

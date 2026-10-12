@@ -37,6 +37,7 @@ var received: Data?
 let replacement = Data(#"{"clientID":"fictional.apps.googleusercontent.com","refreshToken":"fictional-reconnected"}"#.utf8)
 let denied = arguments[1].hasPrefix("deny-")
 switch arguments[1] {
+case "save-initial": service.save(value) { status = $0 }
 case "save", "deny-save": service.save(replacement) { status = $0 }
 case "remove", "deny-remove": service.remove { status = $0 }
 default: service.load { received = $0; status = $1 }

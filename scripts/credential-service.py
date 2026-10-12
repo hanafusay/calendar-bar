@@ -11,7 +11,9 @@ import tempfile
 name = "CalendarCredentials.xpc"
 archive = Path("Resources/CalendarCredentials-v1.tar.gz")
 checksum = archive.with_suffix(archive.suffix + ".sha256")
-certificate = "a8ecbdb4c6955c102dbb9cecfd67371abd5e25af"
+certificate = subprocess.check_output([
+    "openssl", "x509", "-in", "Resources/SigningCertificate.pem", "-noout", "-fingerprint", "-sha1"
+], text=True).strip().split("=", 1)[1].replace(":", "").lower()
 requirement = f'identifier "io.github.calendar-bar.credentials-service" and certificate leaf = H"{certificate}"'
 
 if sys.argv[1] == "build":
