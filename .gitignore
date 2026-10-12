@@ -1,0 +1,8 @@
+.build/
+dist/
+.audit/
+.DS_Store
+*.log
+.env*
+*credentials*.json
+client_secret*.json
