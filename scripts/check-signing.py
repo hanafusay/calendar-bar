@@ -92,9 +92,11 @@ with tempfile.TemporaryDirectory(prefix="calendar-signing-check-", dir=Path.home
         main.write_text(service_source.replace(guard_line, ""))
         run(["swiftc", str(main), "Sources/CredentialProtocol/CredentialProtocol.swift", "-o", str(control_helper / "Contents/MacOS/CalendarCredentials")])
         helper_requirement = f'identifier "io.github.calendar-bar.credentials-service" and certificate leaf = H"{identity}"'
+        run(["security", "list-keychains", "-d", "user", "-s", str(keychain), signing_keychain])
         run(["codesign", "--force", "--options", "runtime", "--timestamp=none", "--sign", identity, "--keychain", signing_keychain,
              "--requirements", "=designated => " + helper_requirement, str(control_helper)])
         run(["codesign", "--force", "--options", "runtime", "--sign", "-", str(control)])
+        run(["security", "list-keychains", "-d", "user", "-s", str(keychain)])
         print(run([str(updated[1]), "save-initial"]).strip(), flush=True)
         result = subprocess.run(["security", "set-generic-password-partition-list", "-S", ",".join("cdhash:" + item for item in [cdhash(helper, "arm64"), cdhash(helper, "x86_64"), cdhash(control_helper)]),
                                  "-a", "google", "-s", "io.github.calendar-bar.credentials", "-k", password, str(keychain)], capture_output=True, timeout=45)
