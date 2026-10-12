@@ -31,6 +31,7 @@ if arguments[2] == "create" {
   add.removeValue(forKey: kSecMatchSearchList as String)
   add[kSecUseKeychain as String] = keychain!
   add[kSecValueData as String] = Data("fictional-fixture-only".utf8)
+  add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
   add[kSecAttrAccess as String] = access!
   precondition(SecItemAdd(add as CFDictionary, nil) == errSecSuccess)
   var code: SecCode?
@@ -52,6 +53,10 @@ if arguments[2] == "create" {
   let migrated = try KeychainAccess.migrate(itemReference())
   precondition(migrated)
   print("Migrated access metadata while preserving fictional credential bytes")
+} else if arguments[2] == "replace" {
+  let changed = [kSecValueData as String: Data("fictional-reconnected".utf8)]
+  precondition(SecItemUpdate(query as CFDictionary, changed as CFDictionary) == errSecSuccess)
+  print("Replaced fictional value as during reconnection")
 } else {
   var lookup = query
   lookup[kSecReturnData as String] = true
@@ -62,7 +67,8 @@ if arguments[2] == "create" {
     print("Unauthorized access denied")
   } else {
     precondition(status == errSecSuccess)
-    precondition(value as? Data == Data("fictional-fixture-only".utf8))
+    let expected = arguments[2] == "updated-value" ? "fictional-reconnected" : "fictional-fixture-only"
+    precondition(value as? Data == Data(expected.utf8))
     print("Fictional item read without authorization UI")
   }
 }

@@ -52,7 +52,10 @@ with tempfile.TemporaryDirectory(prefix="calendar-signing-check-") as directory:
         print(run([str(initial[1]), str(data_keychain), "migrate"]).strip())
         print("Restart:", run([str(initial[1]), str(data_keychain), "read"]).strip())
         print("Update:", run([str(updated[1]), str(data_keychain), "read"]).strip())
+        print("Reconnection:", run([str(updated[1]), str(data_keychain), "replace"]).strip())
+        print("After reconnection restart:", run([str(initial[1]), str(data_keychain), "updated-value"]).strip())
+        print("After reconnection update:", run([str(updated[1]), str(data_keychain), "updated-value"]).strip())
         print("Forgery:", run([str(unrelated[1]), str(data_keychain), "denied"]).strip())
-        print("5 real Keychain migration checks passed; authorization UI disabled; fictional data only.")
+        print("8 real Keychain migration checks passed; authorization UI disabled; fictional data only.")
     finally:
         subprocess.run(["security", "delete-keychain", str(data_keychain)], check=True, capture_output=True)
