@@ -15,7 +15,7 @@ def run(arguments, **kwargs):
         output = (error.stdout or b"").decode(errors="replace") if isinstance(error.stdout, bytes) else (error.stdout or "")
         raise SystemExit(f"Fictional signing check timed out at {Path(arguments[0]).name}: {output[-2000:]}")
     if result.returncode:
-        raise SystemExit(f"Signing check failed at {Path(arguments[0]).name}: {result.stderr[-2000:]}")
+        raise SystemExit(f"Signing check failed at {Path(arguments[0]).name}: {result.stdout[-1000:]} {result.stderr[-2000:]}")
     return result.stdout
 
 

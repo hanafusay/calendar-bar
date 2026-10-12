@@ -33,7 +33,7 @@ if arguments[2] == "create" {
   precondition(SecACLCreateWithSimpleContents(access!, [current!] as CFArray,
     "Authorized fictional migration" as CFString, SecKeychainPromptSelector(), &migrationGrant) == errSecSuccess)
   precondition(SecACLUpdateAuthorizations(migrationGrant!,
-    [kSecACLAuthorizationChangeACL, kSecACLAuthorizationChangeOwner] as CFArray) == errSecSuccess)
+    [kSecACLAuthorizationChangeACL] as CFArray) == errSecSuccess)
   var add = query
   add.removeValue(forKey: kSecMatchSearchList as String)
   add[kSecUseKeychain as String] = keychain!
@@ -58,7 +58,7 @@ if arguments[2] == "create" {
   var value: CFTypeRef?
   let status = SecItemCopyMatching(lookup as CFDictionary, &value)
   if arguments[2] == "denied" {
-    precondition(status == errSecAuthFailed || status == errSecInteractionNotAllowed)
+    precondition(status == errSecAuthFailed || status == errSecInteractionNotAllowed, "Unexpected access status: \(status)")
     print("Unauthorized access denied")
   } else {
     precondition(status == errSecSuccess)
