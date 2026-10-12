@@ -4,6 +4,7 @@ from pathlib import Path
 import plistlib
 import re
 import secrets
+import shutil
 import shlex
 import subprocess
 import tempfile
@@ -82,7 +83,26 @@ with tempfile.TemporaryDirectory(prefix="calendar-signing-check-", dir=Path.home
                 diagnostic = subprocess.run(["log", "show", "--last", "2m", "--style", "compact", "--predicate", 'process == "securityd" AND eventMessage CONTAINS[c] "partition"'], capture_output=True, text=True)
                 print(diagnostic.stdout[-3000:], flush=True)
                 raise
-        print("11 real XPC and Keychain checks passed with fictional data, differing hosts and the identical signed helper.", flush=True)
+        control = root / "Control.app"
+        shutil.copytree(forgery[0], control)
+        control_helper = control / "Contents/XPCServices/CalendarCredentials.xpc"
+        service_source = Path("Sources/CalendarCredentials/main.swift").read_text().replace("import CredentialProtocol\n", "")
+        guard_line = '    connection.setCodeSigningRequirement(CredentialServiceIdentity.requirement(identifier: "io.github.calendar-bar"))\n'
+        assert service_source.count(guard_line) == 1
+        main.write_text(service_source.replace(guard_line, ""))
+        run(["swiftc", str(main), "Sources/CredentialProtocol/CredentialProtocol.swift", "-o", str(control_helper / "Contents/MacOS/CalendarCredentials")])
+        helper_requirement = f'identifier "io.github.calendar-bar.credentials-service" and certificate leaf = H"{identity}"'
+        run(["codesign", "--force", "--options", "runtime", "--timestamp=none", "--sign", identity, "--keychain", signing_keychain,
+             "--requirements", "=designated => " + helper_requirement, str(control_helper)])
+        run(["codesign", "--force", "--options", "runtime", "--sign", "-", str(control)])
+        print(run([str(updated[1]), "save-initial"]).strip(), flush=True)
+        result = subprocess.run(["security", "set-generic-password-partition-list", "-S", ",".join("cdhash:" + item for item in [cdhash(helper, "arm64"), cdhash(helper, "x86_64"), cdhash(control_helper)]),
+                                 "-a", "google", "-s", "io.github.calendar-bar.credentials", "-k", password, str(keychain)], capture_output=True, timeout=45)
+        if result.returncode:
+            raise SystemExit("Cannot authorize isolated negative-control helper")
+        print("Negative control: forged client can read only when the isolated service signature guard is removed", flush=True)
+        print(run([str(control / "Contents/MacOS/Probe"), "read"]).strip(), flush=True)
+        print("Restart, update, changed credentials, removal and three forgery checks passed with the frozen helper. Negative control confirmed caller signature enforcement.", flush=True)
     finally:
         run(["security", "default-keychain", "-d", "user", "-s", original_default])
         run(["security", "list-keychains", "-d", "user", "-s", *original_list])
