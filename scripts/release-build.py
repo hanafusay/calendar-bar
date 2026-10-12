@@ -28,8 +28,8 @@ with tempfile.TemporaryDirectory(prefix="calendar-release-") as directory:
     os.chmod(p12, 0o600)
     keychain = root / "signing.keychain-db"
     keychain_password = secrets.token_urlsafe(40)
-    run(["security", "create-keychain", "-p", keychain_password, str(keychain)])
     original_keychains = shlex.split(run(["security", "list-keychains", "-d", "user"]).decode())
+    run(["security", "create-keychain", "-p", keychain_password, str(keychain)])
     try:
         run(["security", "set-keychain-settings", "-lut", "3600", str(keychain)])
         run(["security", "unlock-keychain", "-p", keychain_password, str(keychain)])
@@ -48,7 +48,14 @@ with tempfile.TemporaryDirectory(prefix="calendar-release-") as directory:
         subprocess.run(["./create-dmg.sh"], env=environment, check=True)
     finally:
         try:
-            run(["sudo", "security", "remove-trusted-cert", "-d", "Resources/SigningCertificate.pem"])
+            try:
+                result = subprocess.run([
+                    "sudo", "security", "remove-trusted-cert", "-d", "Resources/SigningCertificate.pem"
+                ], capture_output=True, timeout=10)
+                if result.returncode:
+                    print("Certificate trust will be discarded with the disposable runner.", flush=True)
+            except subprocess.TimeoutExpired:
+                print("Certificate trust cleanup did not respond; disposable runner will be discarded.", flush=True)
         finally:
             try:
                 run(["security", "list-keychains", "-d", "user", "-s", *original_keychains])
