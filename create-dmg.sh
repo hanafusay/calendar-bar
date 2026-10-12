@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 cd "$(dirname "$0")"
-version="${VERSION:-0.1.1}"
+version="${VERSION:-0.1.2}"
 [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "VERSION must be X.Y.Z" >&2; exit 1; }
 identity="${SIGNING_IDENTITY:--}"
 [[ "${1:-}" == "" || "${1:-}" == "--skip-build" ]] || { echo "Unknown option" >&2; exit 1; }
