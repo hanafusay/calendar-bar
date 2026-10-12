@@ -23,7 +23,7 @@ Remove dependencies on SwiftBar, Python, Homebrew and an external Google CLI.
 The account and credentials stay on the user's Mac. No personal events or credentials ship in the repository.
 Verify the application locally before creating the public GitHub repository.
 Use ad-hoc signing for the first public build. A paid Apple account is not a release prerequisite.
-Dedicated self-signed builds are under verification. Keep the key private. The designated requirement matches the certificate and bundle identifier, but modern login Keychains independently partition self-signed applications by executable hash. Same-version restart was verified after Always Allow; update continuity failed. Do not run experimental access-metadata migration on user credentials. The update-safe design requires further verification and agreement before implementation.
+Official releases use the dedicated self-signed certificate. Credential access belongs to a mutually authenticated bundled XPC service. Reuse the complete frozen signed service archive unchanged across main-application updates. The per-message requirements match the pinned certificate plus the main or service identifier. The service joins the caller's security session and accesses only the fixed credential item. Preserve stored credentials through the native initial Always Allow grant; do not rewrite credential ACLs or remove partition protections. Real application restart and 0.1.3-to-0.1.4 update passed without a repeated prompt after that initial grant. A service update or signing-key change can require reauthorization.
 
 ## Google connection
 

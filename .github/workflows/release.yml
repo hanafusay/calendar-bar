@@ -7,7 +7,7 @@ on:
       version:
         description: Version to verify before publication
         required: true
-        default: '0.1.1'
+        default: '0.1.4'
       bootstrap_credentials:
         description: Build the credential service once for review and freezing
         type: boolean
