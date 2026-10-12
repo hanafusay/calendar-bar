@@ -18,6 +18,9 @@ def run(arguments, **kwargs):
     return result.stdout
 
 
+if os.environ.get("RUNNER_ENVIRONMENT") != "github-hosted":
+    raise SystemExit("Release signing must run on a disposable GitHub-hosted runner.")
+
 archive = os.environ.pop("CALENDAR_SIGNING_P12")
 archive_password = os.environ.pop("CALENDAR_SIGNING_PASSWORD")
 with tempfile.TemporaryDirectory(prefix="calendar-release-") as directory:
