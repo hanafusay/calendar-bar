@@ -46,6 +46,10 @@ jobs:
           RELEASE_VERSION: ${{ inputs.version || github.ref_name }}
         run: |
           TAG="v${RELEASE_VERSION#v}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release already exists; preserving its reviewed assets."
+            exit 0
+          fi
           OPTIONS=()
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then OPTIONS+=(--draft); fi
           gh release create "$TAG" dist/*.dmg dist/*.sha256 --target "$GITHUB_SHA" --title "Calendar Bar $TAG" --notes-file docs/RELEASE.md "${OPTIONS[@]}"
